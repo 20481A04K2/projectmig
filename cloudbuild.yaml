@@ -42,7 +42,7 @@ steps:
           mkdir -p /opt/app
           gsutil cp gs://prod-deployment-bucket/projectmig.zip /opt/app/source.zip
           cd /opt/app
-          unzip source.zip -d .
+          unzip -q source.zip
           cd githubtomig-main || exit
           python3 -m venv venv
           source venv/bin/activate
@@ -98,7 +98,7 @@ steps:
           echo "Rolling restart..."
           gcloud compute instance-groups managed rolling-action restart vamsi-mig \
             --zone=asia-east1-b
-        fi  # 🔁 This line was missing  
+        fi
 
 timeout: 1200s
 
