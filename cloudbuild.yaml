@@ -1,5 +1,5 @@
 steps:
-  # Step 1: Create instance template that unzips ZIP directly from dev GCS
+  # Step 1: Create instance template with updated startup script
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Instance Template'
     entrypoint: bash
@@ -16,32 +16,31 @@ steps:
           --metadata=startup-script='#!/bin/bash
           echo "🔁 Starting VM setup..."
           apt-get update
-          apt-get install -y unzip python3-pip python3-venv
+          apt-get install -y unzip python3-venv python3-pip
           mkdir -p /opt/app
           gsutil cp gs://bitbucketgcsmig/projectmig.zip /opt/app/source.zip
           cd /opt/app
           unzip source.zip -d .
-          cd githubtomig-main || exit
           python3 -m venv venv
           source venv/bin/activate
           pip install flask
           nohup python3 app.py --host=0.0.0.0 --port=8080 > /opt/app/app.log 2>&1 &' \
           --tags=http-server'
 
-  # Step 2: Create firewall if not already created
+  # Step 2: Create firewall rule for port 8080
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Firewall Rule'
     entrypoint: bash
     args:
       - -c
       - |
-        echo "🔐 Creating firewall rule for port 8080..."
+        echo "🔐 Creating firewall rule..."
         gcloud compute firewall-rules create allow-8080 \
           --project=sylvan-hydra-464904-d9 \
           --allow tcp:8080 \
           --target-tags=http-server \
           --direction=INGRESS \
-          --priority=1000 || echo "⚠️ Firewall rule may already exist"
+          --priority=1000 || echo "⚠️ Firewall may already exist"
 
   # Step 3: Create health check
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -55,7 +54,7 @@ steps:
           --project=sylvan-hydra-464904-d9 \
           --port=8080 || echo "⚠️ Health check may already exist"
 
-  # Step 4: Create or update MIG with rolling restart
+  # Step 4: Create or update MIG
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create or Update MIG'
     entrypoint: bash
