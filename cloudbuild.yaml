@@ -98,6 +98,7 @@ steps:
           echo "Rolling restart..."
           gcloud compute instance-groups managed rolling-action restart vamsi-mig \
             --zone=asia-east1-b
+        fi  # 🔁 This line was missing  
 
 timeout: 1200s
 
