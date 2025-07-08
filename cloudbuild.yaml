@@ -18,7 +18,7 @@ steps:
       - -c
       - |
         echo "⏬ Copying projectmig.zip from dev to prod bucket using gcloud storage..."
-        gcloud storage cp gs://bitbucketgcsmig/projectmig.zip gs://prod-deployment-bucket/projectmig.zip
+        gsutil cp gs://bitbucketgcsmig/projectmig.zip gs://prod-deployment-bucket/projectmig.zip
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Instance Template with Startup Script'
