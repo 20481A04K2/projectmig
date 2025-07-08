@@ -1,17 +1,57 @@
 steps:
-  - name: 'gcr.io/cloud-builders/git'
-    args: ['clone', 'https://github.com/20481A04K2/projectmig.git']
-
-  - name: 'ubuntu'
-    entrypoint: 'bash'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Authenticate to dev project using SA key'
+    entrypoint: bash
     args:
-      - '-c'
+      - -c
       - |
-        apt-get update && apt-get install -y zip && \
-        zip -r projectmig.zip projectmig
+        echo "🔐 Authenticating to dev project..."
+        gsutil cp gs://prod-deployment-bucket/dev-sa-key.json /workspace/dev-sa-key.json
+        gcloud auth activate-service-account --key-file=/workspace/dev-sa-key.json
 
-  - name: 'gcr.io/cloud-builders/gsutil'
-    args: ['cp', 'projectmig.zip', 'gs://bitbucketmig/projectmig.zip']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Copy ZIP from dev to prod GCS'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        echo "⏬ Copying projectmig.zip from dev to prod bucket..."
+        gsutil cp gs://bitbucketgcsmig/projectmig.zip gs://prod-deployment-bucket/projectmig.zip
 
-options:
-  logging: CLOUD_LOGGING_ONLY
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Create Instance Template with Startup Script'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        echo "🛠️ Creating instance template..."
+        gcloud compute instance-templates create prod-mig-template \
+          --project=sylvan-hydra-464904-d9 \
+          --region=asia-east1 \
+          --machine-type=e2-medium \
+          --network=default \
+          --metadata=startup-script='#!/bin/bash
+          echo "🔁 Starting VM setup..."
+          apt-get update
+          apt-get install -y unzip python3-pip
+          gsutil cp gs://prod-deployment-bucket/projectmig.zip /tmp/projectmig.zip
+          unzip /tmp/projectmig.zip -d /opt/app
+          cd /opt/app
+          if [ -f requirements.txt ]; then pip3 install -r requirements.txt; fi
+          python3 app.py &'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Create Managed Instance Group'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        echo "📦 Creating managed instance group..."
+        gcloud compute instance-groups managed create prod-mig \
+          --project=sylvan-hydra-464904-d9 \
+          --region=asia-east1 \
+          --size=1 \
+          --template=prod-mig-template \
+          --target-distribution-shape=EVEN
+
+timeout: 1200s
