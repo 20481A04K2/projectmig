@@ -1,15 +1,5 @@
 steps:
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'Authenticate to dev project using SA key'
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        echo "🔐 Authenticating to dev project..."
-        gsutil cp gs://prod-deployment-bucket/dev-sa-key.json /workspace/dev-sa-key.json
-        gcloud auth activate-service-account --key-file=/workspace/dev-sa-key.json
-
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Copy ZIP from dev to prod GCS'
     entrypoint: bash
     args:
