@@ -1,103 +1,84 @@
 steps:
-  # Step 0: Generate VERSION_TAG and write to version.env
-  - name: 'bash'
-    id: 'Generate Version Tag'
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        VERSION_TAG=$$(date +%Y%m%d%H%M%S)
-        echo "VERSION_TAG=$${VERSION_TAG}" > /workspace/version.env
-        cat /workspace/version.env
-
-  # Step 1: Copy ZIP from dev to prod GCS
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'Copy ZIP from dev to prod GCS'
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        echo "⏬ Copying projectmig.zip from dev to prod bucket..."
-        gsutil cp gs://bitbucketgcsmig/projectmig.zip gs://prod-deployment-bucket/projectmig.zip
-
-  # Step 2: Create instance template
+  # Step 1: Create instance template that unzips ZIP directly from dev GCS
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Instance Template'
     entrypoint: bash
     args:
       - -c
       - |
-        source /workspace/version.env
-        echo "🛠️ Creating instance template vamsi-template-$$VERSION_TAG..."
-        gcloud compute instance-templates create vamsi-template-$$VERSION_TAG \
+        VERSION_TAG=$(date +%Y%m%d%H%M%S)
+        echo "🛠️ Creating instance template prod-template-$$VERSION_TAG"
+        gcloud compute instance-templates create prod-template-$$VERSION_TAG \
           --project=sylvan-hydra-464904-d9 \
-          --region=asia-east1 \
           --machine-type=e2-medium \
+          --region=asia-east1 \
           --network=default \
-          --tags=http-server \
           --metadata=startup-script='#!/bin/bash
           echo "🔁 Starting VM setup..."
           apt-get update
-          apt-get install -y unzip python3-venv python3-pip
+          apt-get install -y unzip python3-pip python3-venv
           mkdir -p /opt/app
-          gsutil cp gs://prod-deployment-bucket/projectmig.zip /opt/app/source.zip
+          gsutil cp gs://bitbucketgcsmig/projectmig.zip /opt/app/source.zip
           cd /opt/app
-          unzip -q source.zip
+          unzip source.zip -d .
           cd githubtomig-main || exit
           python3 -m venv venv
           source venv/bin/activate
           pip install flask
-          nohup python3 app.py --host=0.0.0.0 --port=8080 > /opt/app/app.log 2>&1 &'
+          nohup python3 app.py --host=0.0.0.0 --port=8080 > /opt/app/app.log 2>&1 &' \
+          --tags=http-server'
 
-  # Step 3: Create firewall rule (if not exists)
+  # Step 2: Create firewall if not already created
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Firewall Rule'
     entrypoint: bash
     args:
       - -c
       - |
+        echo "🔐 Creating firewall rule for port 8080..."
         gcloud compute firewall-rules create allow-8080 \
-          --allow=tcp:8080 \
+          --project=sylvan-hydra-464904-d9 \
+          --allow tcp:8080 \
           --target-tags=http-server \
           --direction=INGRESS \
-          --priority=1000 \
-          --network=default || echo "⚠️ Firewall rule may already exist"
+          --priority=1000 || echo "⚠️ Firewall rule may already exist"
 
-  # Step 4: Create HTTP health check (if not exists)
+  # Step 3: Create health check
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Health Check'
     entrypoint: bash
     args:
       - -c
       - |
+        echo "❤️ Creating health check..."
         gcloud compute health-checks create http vamsi-health-check \
+          --project=sylvan-hydra-464904-d9 \
           --port=8080 || echo "⚠️ Health check may already exist"
 
-  # Step 5: Create or Update MIG
+  # Step 4: Create or update MIG with rolling restart
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create or Update MIG'
     entrypoint: bash
     args:
       - -c
       - |
-        source /workspace/version.env
-        if ! gcloud compute instance-groups managed describe vamsi-mig --zone=asia-east1-b > /dev/null 2>&1; then
-          echo "Creating MIG..."
-          gcloud compute instance-groups managed create vamsi-mig \
-            --base-instance-name=vamsi-instance \
-            --template=vamsi-template-$$VERSION_TAG \
+        VERSION_TAG=$(date +%Y%m%d%H%M%S)
+        if ! gcloud compute instance-groups managed describe prod-mig --region=asia-east1 > /dev/null 2>&1; then
+          echo "📦 Creating managed instance group..."
+          gcloud compute instance-groups managed create prod-mig \
+            --project=sylvan-hydra-464904-d9 \
+            --region=asia-east1 \
             --size=1 \
-            --zone=asia-east1-b \
-            --health-check=vamsi-health-check \
-            --initial-delay=30
+            --template=prod-template-$$VERSION_TAG \
+            --target-distribution-shape=EVEN
         else
-          echo "Updating MIG with new template..."
-          gcloud compute instance-groups managed set-instance-template vamsi-mig \
-            --template=vamsi-template-$$VERSION_TAG \
-            --zone=asia-east1-b
-          echo "Rolling restart..."
-          gcloud compute instance-groups managed rolling-action restart vamsi-mig \
-            --zone=asia-east1-b
+          echo "♻️ Updating MIG with new template..."
+          gcloud compute instance-groups managed set-instance-template prod-mig \
+            --region=asia-east1 \
+            --template=prod-template-$$VERSION_TAG
+          echo "🔁 Performing rolling restart..."
+          gcloud compute instance-groups managed rolling-action restart prod-mig \
+            --region=asia-east1
         fi
 
 timeout: 1200s
