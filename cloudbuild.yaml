@@ -1,14 +1,25 @@
 steps:
-  # Step 1: Create instance template with updated startup script
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'Create Instance Template'
+  # Step 0: Generate VERSION_TAG and write to version.env
+  - name: 'bash'
+    id: 'Generate Version Tag'
     entrypoint: bash
     args:
       - -c
       - |
-        VERSION_TAG=$(date +%Y%m%d%H%M%S)
-        echo "🛠️ Creating instance template prod-template-$${VERSION_TAG}"
-        gcloud compute instance-templates create prod-template-$${VERSION_TAG} \
+        VERSION_TAG=$$(date +%Y%m%d%H%M%S)
+        echo "VERSION_TAG=$${VERSION_TAG}" > /workspace/version.env
+        cat /workspace/version.env
+
+  # Step 1: Create instance template with updated startup script
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Create Instance Template'
+    entrypoint: 'bash'
+    args:
+      - -c
+      - |
+        source /workspace/version.env
+        echo "🛠️ Creating instance template prod-template-$$VERSION_TAG"
+        gcloud compute instance-templates create prod-template-$$VERSION_TAG \
           --project=sylvan-hydra-464904-d9 \
           --machine-type=e2-medium \
           --region=asia-east1 \
@@ -27,11 +38,10 @@ steps:
           pip install flask
           nohup python3 app.py --host=0.0.0.0 --port=8080 > /opt/app/app.log 2>&1 &'
 
-
   # Step 2: Create firewall rule for port 8080
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Firewall Rule'
-    entrypoint: bash
+    entrypoint: 'bash'
     args:
       - -c
       - |
@@ -46,7 +56,7 @@ steps:
   # Step 3: Create health check
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Health Check'
-    entrypoint: bash
+    entrypoint: 'bash'
     args:
       - -c
       - |
@@ -58,24 +68,25 @@ steps:
   # Step 4: Create or update MIG
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create or Update MIG'
-    entrypoint: bash
+    entrypoint: 'bash'
     args:
       - -c
       - |
-        VERSION_TAG=$(date +%Y%m%d%H%M%S)
+        source /workspace/version.env
+        echo "📦 Checking or creating MIG with template prod-template-$$VERSION_TAG"
         if ! gcloud compute instance-groups managed describe prod-mig --region=asia-east1 > /dev/null 2>&1; then
-          echo "📦 Creating managed instance group..."
+          echo "🔨 Creating new MIG..."
           gcloud compute instance-groups managed create prod-mig \
             --project=sylvan-hydra-464904-d9 \
             --region=asia-east1 \
             --size=1 \
-            --template=prod-template-$${VERSION_TAG} \
+            --template=prod-template-$$VERSION_TAG \
             --target-distribution-shape=EVEN
         else
           echo "♻️ Updating MIG with new template..."
           gcloud compute instance-groups managed set-instance-template prod-mig \
             --region=asia-east1 \
-            --template=prod-template-$${VERSION_TAG}
+            --template=prod-template-$$VERSION_TAG
           echo "🔁 Performing rolling restart..."
           gcloud compute instance-groups managed rolling-action restart prod-mig \
             --region=asia-east1
