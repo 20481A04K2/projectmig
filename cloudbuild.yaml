@@ -1,1 +1,13 @@
 
+steps:
+  - name: 'gcr.io/cloud-builders/git'
+    args: ['clone', 'https://github.com/20481A04K2/projectmig.git']
+
+  - name: 'gcr.io/cloud-builders/zip'
+    args: ['-r', 'projectmig.zip', 'projectmig']
+
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args: ['cp', 'projectmig.zip', 'gs://bitbucketmig/projectmig.zip']
+
+options:
+  logging: CLOUD_LOGGING_ONLY
