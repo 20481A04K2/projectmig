@@ -6,7 +6,7 @@ steps:
       - -c
       - |
         echo "🔐 Authenticating to dev project..."
-        gsutil cp gs://prod-deployment-bucket/dev-sa-key.json /workspace/dev-sa-key.json
+        gcloud storage cp gs://prod-deployment-bucket/dev-sa-key.json /workspace/dev-sa-key.json
         gcloud auth activate-service-account --key-file=/workspace/dev-sa-key.json
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -15,8 +15,8 @@ steps:
     args:
       - -c
       - |
-        echo "⏬ Copying projectmig.zip from dev to prod bucket..."
-        gsutil cp "gs://bitbucketgcsmig/projectmig.zip" gs://prod-deployment-bucket/projectmig.zip
+        echo "⏬ Copying projectmig.zip from dev to prod bucket using gcloud storage..."
+        gcloud storage cp gs://bitbucketgcsmig/projectmig.zip gs://prod-deployment-bucket/projectmig.zip
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Instance Template with Startup Script'
