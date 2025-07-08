@@ -7,12 +7,13 @@ steps:
       - -c
       - |
         VERSION_TAG=$(date +%Y%m%d%H%M%S)
-        echo "🛠️ Creating instance template prod-template-$$VERSION_TAG"
-        gcloud compute instance-templates create prod-template-$$VERSION_TAG \
+        echo "🛠️ Creating instance template prod-template-$${VERSION_TAG}"
+        gcloud compute instance-templates create prod-template-$${VERSION_TAG} \
           --project=sylvan-hydra-464904-d9 \
           --machine-type=e2-medium \
           --region=asia-east1 \
           --network=default \
+          --tags=http-server \
           --metadata=startup-script='#!/bin/bash
           echo "🔁 Starting VM setup..."
           apt-get update
@@ -24,8 +25,8 @@ steps:
           python3 -m venv venv
           source venv/bin/activate
           pip install flask
-          nohup python3 app.py --host=0.0.0.0 --port=8080 > /opt/app/app.log 2>&1 &' \
-          --tags=http-server'
+          nohup python3 app.py --host=0.0.0.0 --port=8080 > /opt/app/app.log 2>&1 &'
+
 
   # Step 2: Create firewall rule for port 8080
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -68,13 +69,13 @@ steps:
             --project=sylvan-hydra-464904-d9 \
             --region=asia-east1 \
             --size=1 \
-            --template=prod-template-$$VERSION_TAG \
+            --template=prod-template-$${VERSION_TAG} \
             --target-distribution-shape=EVEN
         else
           echo "♻️ Updating MIG with new template..."
           gcloud compute instance-groups managed set-instance-template prod-mig \
             --region=asia-east1 \
-            --template=prod-template-$$VERSION_TAG
+            --template=prod-template-$${VERSION_TAG}
           echo "🔁 Performing rolling restart..."
           gcloud compute instance-groups managed rolling-action restart prod-mig \
             --region=asia-east1
