@@ -27,12 +27,13 @@ steps:
           --tags=http-server \
           --metadata=startup-script='#!/bin/bash
           echo "🔁 Starting VM setup..."
-          apt-get update
-          apt-get install -y unzip python3-venv python3-pip
-          mkdir -p /opt/app
-          gsutil cp gs://bitbucketgcsmig/projectmig.zip /opt/app/source.zip
+          sudo apt-get update
+          sudo apt-get install -y unzip python3-venv python3-pip
+          sudo mkdir -p /opt/app
+          sudo gsutil cp gs://bitbucketgcsmig/projectmig.zip /opt/app/source.zip
           cd /opt/app
-          unzip source.zip -d .
+          sudo unzip source.zip -d .
+          cd projectmig
           python3 -m venv venv
           source venv/bin/activate
           pip install flask
