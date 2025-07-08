@@ -12,6 +12,8 @@ steps:
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Copy ZIP from dev to prod GCS'
     entrypoint: bash
+    env:
+      - 'GOOGLE_APPLICATION_CREDENTIALS=/workspace/dev-sa-key.json'
     args:
       - -c
       - |
