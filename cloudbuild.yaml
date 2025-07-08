@@ -16,7 +16,7 @@ steps:
       - -c
       - |
         echo "⏬ Copying projectmig.zip from dev to prod bucket..."
-        gsutil cp gs://bitbucketgcsmig/projectmig.zip gs://prod-deployment-bucket/projectmig.zip
+        gsutil cp "gs://bitbucketgcsmig/projectmig.zip" gs://prod-deployment-bucket/projectmig.zip
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Create Instance Template with Startup Script'
@@ -55,6 +55,6 @@ steps:
           --target-distribution-shape=EVEN
 
 timeout: 1200s
+
 options:
   logging: CLOUD_LOGGING_ONLY
-
